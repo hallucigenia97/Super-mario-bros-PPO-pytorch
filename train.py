@@ -33,7 +33,7 @@ def get_args():
     parser.add_argument("--num_local_steps", type=int, default=512)
     parser.add_argument("--num_global_steps", type=int, default=5e6)
     parser.add_argument("--num_processes", type=int, default=8)
-    parser.add_argument("--save_interval", type=int, default=50, help="Number of steps between savings")
+    parser.add_argument("--save_interval", type=int, default=10, help="Number of steps between savings")
     parser.add_argument("--max_actions", type=int, default=200, help="Maximum repetition steps in test phase")
     parser.add_argument("--log_path", type=str, default="tensorboard/ppo_super_mario_bros")
     parser.add_argument("--saved_path", type=str, default="trained_models")
@@ -51,9 +51,17 @@ def train(opt):
     os.makedirs(opt.log_path)
     if not os.path.isdir(opt.saved_path):
         os.makedirs(opt.saved_path)
+
+
     mp = _mp.get_context("spawn")
     envs = MultipleEnvironments(opt.world, opt.stage, opt.action_type, opt.num_processes)
     model = PPO(envs.num_states, envs.num_actions)
+
+    torch_path = f"{opt.saved_path}/ppo_super_mario_bros_{opt.world}_{opt.stage}" 
+    if os.path.isfile(torch_path):
+        model.load_state_dict(torch.load(torch_path))
+        print(f'loaded : {torch_path}')
+
     if torch.cuda.is_available():
         model.cuda()
     model.share_memory()
@@ -66,12 +74,11 @@ def train(opt):
     if torch.cuda.is_available():
         curr_states = curr_states.cuda()
     curr_episode = 0
+
     while True:
         if curr_episode % opt.save_interval == 0 and curr_episode > 0:
-            torch.save(model.state_dict(),
-                       "{}/ppo_super_mario_bros_{}_{}".format(opt.saved_path, opt.world, opt.stage))
-            torch.save(model.state_dict(),
-                       "{}/ppo_super_mario_bros_{}_{}_{}".format(opt.saved_path, opt.world, opt.stage, curr_episode))
+            torch.save(model.state_dict(), torch_path)
+            # torch.save(model.state_dict(), f"{torch_path}_{curr_episode}")
         curr_episode += 1
         old_log_policies = []
         actions = []
